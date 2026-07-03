@@ -1,0 +1,85 @@
+{
+  "entities": {
+    "Target": {
+      "title": "Target",
+      "description": "A target application/program for bug hunting.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "url": { "type": "string" },
+        "platform": { "type": "string" },
+        "scope": { "type": "string" },
+        "out_of_scope": { "type": "string" },
+        "status": { "type": "string", "enum": ["Active", "Archived"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name", "url", "platform", "scope", "out_of_scope", "status", "notes", "createdAt"]
+    },
+    "BugReport": {
+      "title": "BugReport",
+      "description": "A vulnerability bug report.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "target_id": { "type": "string" },
+        "vuln_type": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Critical", "High", "Medium", "Low", "Info"] },
+        "description": { "type": "string" },
+        "steps_to_reproduce": { "type": "string" },
+        "impact": { "type": "string" },
+        "poc": { "type": "string" },
+        "status": { "type": "string", "enum": ["Draft", "Submitted", "Accepted", "Rejected", "Duplicate"] },
+        "created_date": { "type": "string" }
+      },
+      "required": ["id", "title", "target_id", "vuln_type", "severity", "description", "steps_to_reproduce", "impact", "poc", "status", "created_date"]
+    },
+    "MethodologyChecklist": {
+      "title": "MethodologyChecklist",
+      "description": "A progress checklist for a target.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "target_id": { "type": "string" },
+        "checklist_type": { "type": "string" },
+        "items": { "type": "array" }
+      },
+      "required": ["id", "target_id", "checklist_type", "items"]
+    },
+    "CodeAnalysis": {
+      "title": "CodeAnalysis",
+      "description": "AI-powered static code analysis results.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code_snippet": { "type": "string" },
+        "language": { "type": "string" },
+        "findings": { "type": "array" },
+        "overallSeverity": { "type": "string", "enum": ["Critical", "High", "Medium", "Low", "None"] },
+        "summary": { "type": "string" },
+        "created_date": { "type": "string" }
+      },
+      "required": ["id", "code_snippet", "language", "findings", "overallSeverity", "summary", "created_date"]
+    }
+  },
+  "firestore": {
+    "/targets/{targetId}": {
+      "schema": { "$ref": "#/entities/Target" },
+      "description": "The active/archived hunting targets"
+    },
+    "/bug_reports/{reportId}": {
+      "schema": { "$ref": "#/entities/BugReport" },
+      "description": "Registered bug reports"
+    },
+    "/checklists/{checklistId}": {
+      "schema": { "$ref": "#/entities/MethodologyChecklist" },
+      "description": "Security progress checklists"
+    },
+    "/code_analyses/{analysisId}": {
+      "schema": { "$ref": "#/entities/CodeAnalysis" },
+      "description": "Saved AI code analysis reports"
+    }
+  }
+}

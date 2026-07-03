@@ -1,0 +1,6 @@
+{
+  "name": "BugHunter",
+  "description": "Solo bug bounty workspace combining AI-powered code analysis with professional target tracking, methodology checklists, and report management.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,78 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Targets Collection
+    match /targets/{targetId} {
+      allow read, list: if true;
+      allow create, update: if isValidId(targetId)
+        && incoming().id == targetId
+        && incoming().name is string && incoming().name.size() <= 200
+        && incoming().url is string && incoming().url.size() <= 500
+        && incoming().platform is string && incoming().platform.size() <= 100
+        && incoming().scope is string && incoming().scope.size() <= 5000
+        && incoming().out_of_scope is string && incoming().out_of_scope.size() <= 5000
+        && incoming().status in ['Active', 'Archived']
+        && incoming().notes is string && incoming().notes.size() <= 10000
+        && incoming().createdAt is string && incoming().createdAt.size() <= 100;
+      allow delete: if true;
+    }
+
+    // Bug Reports Collection
+    match /bug_reports/{reportId} {
+      allow read, list: if true;
+      allow create, update: if isValidId(reportId)
+        && incoming().id == reportId
+        && incoming().title is string && incoming().title.size() <= 300
+        && incoming().target_id is string && incoming().target_id.size() <= 128
+        && incoming().vuln_type is string && incoming().vuln_type.size() <= 100
+        && incoming().severity in ['Critical', 'High', 'Medium', 'Low', 'Info']
+        && incoming().description is string && incoming().description.size() <= 10000
+        && incoming().steps_to_reproduce is string && incoming().steps_to_reproduce.size() <= 10000
+        && incoming().impact is string && incoming().impact.size() <= 10000
+        && incoming().poc is string && incoming().poc.size() <= 50000
+        && incoming().status in ['Draft', 'Submitted', 'Accepted', 'Rejected', 'Duplicate']
+        && incoming().created_date is string && incoming().created_date.size() <= 100;
+      allow delete: if true;
+    }
+
+    // Checklists Collection
+    match /checklists/{checklistId} {
+      allow read, list: if true;
+      allow create, update: if isValidId(checklistId)
+        && incoming().id == checklistId
+        && incoming().target_id is string && incoming().target_id.size() <= 128
+        && incoming().checklist_type is string && incoming().checklist_type.size() <= 100
+        && incoming().items is list && incoming().items.size() <= 100;
+      allow delete: if true;
+    }
+
+    // Code Analyses Collection
+    match /code_analyses/{analysisId} {
+      allow read, list: if true;
+      allow create, update: if isValidId(analysisId)
+        && incoming().id == analysisId
+        && incoming().code_snippet is string && incoming().code_snippet.size() <= 100000
+        && incoming().language is string && incoming().language.size() <= 50
+        && incoming().findings is list && incoming().findings.size() <= 500
+        && incoming().overallSeverity in ['Critical', 'High', 'Medium', 'Low', 'None']
+        && incoming().summary is string && incoming().summary.size() <= 5000
+        && incoming().created_date is string && incoming().created_date.size() <= 100;
+      allow delete: if true;
+    }
+  }
+}
