@@ -1,0 +1,10 @@
+{
+  "projectId": "your-project-id",
+  "appId": "1:XXXXXXXXXXXX:web:YYYYYYYYYYYYYYYY",
+  "apiKey": "AIza...YOUR_API_KEY_HERE...",
+  "authDomain": "your-project-id.firebaseapp.com",
+  "firestoreDatabaseId": "(default)",
+  "storageBucket": "your-project-id.appspot.com",
+  "messagingSenderId": "XXXXXXXXXXXX",
+  "measurementId": ""
+}
