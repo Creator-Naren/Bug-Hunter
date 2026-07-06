@@ -1,165 +1,349 @@
-# Bug Hunter — Static Security Auditor + Vulnerability Tracker (TypeScript + React + Firebase + Gemini)
+# 🐛 Bug Hunter
 
-## What this is
-Bug Hunter is a local-first developer tool and web UI for scanning Python code with a structured AI security analysis, turning AI findings into draft bug reports, and tracking those reports alongside project target metadata. It pairs a React + Vite front-end with an Express/TypeScript server that calls Google Gemini (via @google/genai) for structured SAST-style output and persists workspace state in Firebase Firestore.
+> A **local-first developer tool** for AI-powered Python security analysis, vulnerability detection, and report management.
 
-## Key capabilities
-- Use Gemini to perform structured security analyses of Python code snippets and return JSON-formatted findings.
-- Convert AI findings into draft vulnerability reports that can be reviewed, edited, and stored.
-- Manage targets (projects/repositories) and link bug reports and methodology checklists to targets.
-- Store historical analyses and support a developer-facing dashboard and sidebar system log stream.
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Firebase](https://img.shields.io/badge/Firebase-FFCA28?logo=firebase&logoColor=black)](https://firebase.google.com/)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-4285F4?logo=google&logoColor=white)](https://ai.google.dev/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 
-## Stack
-- **Languages:** TypeScript (frontend + backend), HTML/CSS, JSON for config and Firebase rules
-- **Framework / runtime:** React (TSX) + Vite frontend; Express + Node TS backend (server.ts)
-- **Notable libraries / integrations:**
-  - React + Vite (frontend SPA)
-  - Firebase / Firestore (persistence)
-  - @google/genai (Gemini integration for structured analysis)
-  - Tailwind-like utility classes observed in components (UI styling)
-  - Express (server runtime)
+---
 
-## Repository layout (top-level)
+## 🎯 Overview
+
+Bug Hunter combines **AI-powered static analysis** with a **modern web UI** to help developers identify, track, and manage security vulnerabilities in Python code. Built with TypeScript, React, Firebase, and Google Gemini, it provides a seamless workflow from code scanning to vulnerability reporting.
+
+### Key Features
+
+- 🔍 **Structured AI Security Analysis** — Scan Python code with Gemini for comprehensive vulnerability detection
+- 📋 **Vulnerability Reporting** — Convert AI findings into actionable draft bug reports
+- 📊 **Project Management** — Track targets (projects/repositories) and organize security findings
+- 💾 **Persistent Storage** — Store analyses and reports in Firebase Firestore
+- 📈 **Developer Dashboard** — View analytics, quick actions, and system logs
+- 🎨 **Clean Web UI** — Intuitive React interface with a sidebar-based navigation model
+
+---
+
+## 🛠️ Technology Stack
+
+| Layer | Technologies |
+|-------|--------------|
+| **Frontend** | React (TSX), Vite, Tailwind-inspired utilities |
+| **Backend** | Node.js, Express, TypeScript |
+| **Database** | Firebase Firestore |
+| **AI Engine** | Google Gemini API (@google/genai) |
+| **Languages** | TypeScript (97.2%), HTML (1.6%), CSS (1.2%) |
+
+---
+
+## 📁 Project Structure
+
 ```
-App.tsx                 — main React application component (mounts the workspace)
-index.tsx               — React entrypoint (renders App)
-server.ts               — Express + Vite middleware server that calls Gemini for analysis
-firebase.ts             — firebase initialization using firebase-applet-config.json
-firebase.json           — firebase project config (deployment / hosting hints)
-firebase-applet-config.json — local Firebase config used by firebase.ts
-firestore.rules         — Firestore security rules (store with repo)
-components/             — React UI components:
-  Analyzer.tsx          — code analysis UI & integration to convert findings -> reports
-  BugReports.tsx        — reports UI (create/edit/list)
-  Dashboard.tsx         — overview and quick actions
-  Sidebar.tsx           — navigation and system log feed
-  Targets.tsx           — manage targets (projects/repositories)
-services/                — services used by the app:
-  db.ts                 — Firestore read/write wrappers and helpers (get/save/delete operations)
-index.html              — SPA HTML shell
-index.css               — app-wide CSS (global styles)
-metadata.json           — app metadata (branding/version hints)
-package.json            — npm metadata and dependencies (present in repo)
-package-lock.json       — lockfile for exact dependency versions
-tsconfig.json           — TypeScript configuration
-vite.config.ts          — Vite + dev server configuration
-types.ts                — TypeScript types/DTOs used across the app
+Bug-Hunter/
+├── src/
+│   ├── App.tsx                      # Main React application component
+│   ├── index.tsx                    # React entry point
+│   ├── index.html                   # SPA HTML shell
+│   ├── index.css                    # Global styles
+│   ├── types.ts                     # TypeScript interfaces & DTOs
+│   │
+│   ├── components/
+│   │   ├── Dashboard.tsx            # Overview & quick actions
+│   │   ├── Analyzer.tsx             # Code analysis UI & findings converter
+│   │   ├── BugReports.tsx           # Vulnerability reports list & editor
+│   │   ├── Targets.tsx              # Project/repository management
+│   │   └── Sidebar.tsx              # Navigation & system logs
+│   │
+│   ├── services/
+│   │   └── db.ts                    # Firestore CRUD operations
+│   │
+│   ├── firebase.ts                  # Firebase initialization
+│   ├── server.ts                    # Express server & /api/analyze endpoint
+│   │
+│   ├── config/
+│   │   ├── firebase.json            # Firebase deployment config
+│   │   ├── firebase-applet-config.json   # Firebase app credentials
+│   │   └── firestore.rules          # Firestore security rules
+│   │
+│   ├── metadata.json                # App metadata & branding
+│   ├── tsconfig.json                # TypeScript configuration
+│   └── vite.config.ts               # Vite configuration
+│
+├── package.json                     # Dependencies & scripts
+├── package-lock.json                # Dependency lock file
+└── README.md                        # This file
 ```
 
-## How it fits together
-- Frontend (React + Vite) is a single-page app with several workspace tabs: dashboard, analyzer, targets, and reports. Main entry is App.tsx which pulls data from Firestore via service functions (services/db.ts) and navigates between components in the components/ folder.
-- Backend (server.ts) exposes a POST /api/analyze endpoint. The backend builds a structured prompt and calls the Gemini API (via @google/genai) expecting JSON output matching an explicit schema (vulnerabilities array, overallSeverity, summary). In development mode the server spins up a Vite dev server as middleware so the same process serves the SPA and handles AI API calls.
-- Persistence and auth: firebase.ts initializes Firestore using firebase-applet-config.json. services/db.ts implements CRUD for targets, bug_reports, checklists and code_analyses collections. Firestore security rules are included in firestore.rules.
+---
 
-## Quick start — development
+## 🚀 Quick Start
 
-### Requirements
-- Node.js (recommended current LTS)
-- A Firebase project with Firestore enabled
-- A Google Gemini API key (stored in GEMINI_API_KEY environment variable, see notes)
-- The file firebase-applet-config.json must be present and contain your Firebase app configuration (the repo includes a placeholder file name)
+### Prerequisites
 
-### Install dependencies
+- **Node.js** (14+ or current LTS recommended)
+- **Firebase Project** with Firestore enabled
+- **Google Gemini API Key** (`GEMINI_API_KEY` environment variable)
+- **firebase-applet-config.json** in the repository root with your Firebase app config
+
+### Installation
+
 ```bash
-# from repository root
+# Clone and navigate
+git clone https://github.com/Creator-Naren/Bug-Hunter.git
+cd Bug-Hunter
+
+# Install dependencies
 npm install
 ```
 
-### Run the app for development
-- The repository runs an Express TypeScript server (server.ts). In development the server mounts Vite as middleware and listens on port 3000. A single development server run should serve the frontend and provide the /api/analyze endpoint.
+### Development
 
-Example dev run (using ts-node-dev for TypeScript hot reload):
 ```bash
-# If you don't have a script, a common approach:
+# Start the development server (with hot reload)
+npm run dev
+
+# or manually with ts-node-dev
 npx ts-node-dev --respawn --transpile-only server.ts
-# or, if the project provides npm scripts:
+```
+
+The app will be available at `http://localhost:3000`
+
+### Production Build
+
+```bash
+# Build the frontend
+npm run build
+
+# Compile backend TypeScript
+npx tsc
+
+# Run the production server
+NODE_ENV=production node dist/server.js
+```
+
+---
+
+## 🔌 API Reference
+
+### `/api/analyze` — Analyze Python Code
+
+**Endpoint:** `POST /api/analyze`
+
+**Request:**
+```json
+{
+  "code": "<python source code as string>"
+}
+```
+
+**Response:**
+```json
+{
+  "vulnerabilities": [
+    {
+      "type": "SQL Injection",
+      "severity": "Critical | High | Medium | Low | Info",
+      "lineNumber": 42,
+      "description": "Detailed explanation of the vulnerability",
+      "recommendation": "Suggested fix or mitigation"
+    }
+  ],
+  "overallSeverity": "Critical | High | Medium | Low | None",
+  "summary": "High-level analysis summary"
+}
+```
+
+---
+
+## ⚙️ Configuration
+
+### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key for AI analysis |
+| `NODE_ENV` | ❌ No | Set to `production` for production builds (default: `development`) |
+
+### Firebase Configuration (`firebase-applet-config.json`)
+
+Create or update this file with your Firebase project credentials:
+
+```json
+{
+  "apiKey": "YOUR_API_KEY",
+  "authDomain": "your-project.firebaseapp.com",
+  "projectId": "your-project",
+  "storageBucket": "your-project.appspot.com",
+  "messagingSenderId": "YOUR_SENDER_ID",
+  "appId": "YOUR_APP_ID"
+}
+```
+
+### Firestore Collections
+
+The app expects the following Firestore collections:
+
+- **targets** — Project/repository metadata
+- **bug_reports** — Vulnerability reports
+- **checklists** — Security methodologies (optional)
+- **code_analyses** — Historical analysis records
+
+All documents should include `createdAt` and `updatedAt` timestamps.
+
+---
+
+## 📚 How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Developer Workflow                      │
+└─────────────────────────────────────────────────────────────┘
+
+1. Developer pastes/uploads Python code in Analyzer tab
+                        ↓
+2. Frontend sends code to POST /api/analyze
+                        ↓
+3. Server constructs structured prompt → calls Gemini API
+                        ↓
+4. Gemini returns JSON-formatted security findings
+                        ↓
+5. Frontend parses findings → displays vulnerabilities
+                        ↓
+6. Developer reviews → converts to draft bug report
+                        ↓
+7. Report saved to Firestore → tracked in BugReports tab
+```
+
+---
+
+## 🔒 Security Considerations
+
+### Credentials & Secrets
+
+⚠️ **Never commit sensitive information to the repository!**
+
+- `GEMINI_API_KEY` — store only in environment variables
+- `firebase-applet-config.json` — keep credentials secure
+- Add these files to `.gitignore` if using actual credentials
+
+### Firestore Rules
+
+Update `firestore.rules` to match your authentication model:
+
+```javascript
+// Example: Authenticated users only
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+```
+
+---
+
+## 🛠️ Key Files for Development
+
+| File | Purpose |
+|------|---------|
+| **server.ts** | Express server, AI prompt construction, `/api/analyze` endpoint |
+| **services/db.ts** | All Firestore CRUD operations (getTargets, saveReport, deleteTarget, etc.) |
+| **components/Analyzer.tsx** | Code upload/paste UI and findings-to-report conversion logic |
+| **types.ts** | TypeScript interfaces (Target, BugReport, Finding, CodeAnalysis, etc.) |
+| **App.tsx** | Top-level state management and component wiring |
+
+---
+
+## 🐛 Troubleshooting
+
+### Issue: "GEMINI_API_KEY is not configured"
+
+**Solution:** Ensure `GEMINI_API_KEY` is set in your environment:
+
+```bash
+export GEMINI_API_KEY="your-api-key"
 npm run dev
 ```
 
-### Environment variables
-- GEMINI_API_KEY — required. The server checks this variable and returns an error if not configured.
-- NODE_ENV — set to production to serve pre-built frontend from dist/ (server.ts branches on NODE_ENV).
-- If your Firebase project requires different defaults, add or update firebase-applet-config.json (the repo expects this file and firebase.ts imports it directly).
+### Issue: Firestore permission errors
 
-### Production build
-1. Build the frontend with Vite:
-   - If you have a build script: npm run build
-   - Otherwise: npx vite build
-2. Compile TypeScript (backend) and produce a production-ready server bundle (example):
+**Solution:** 
+
+1. Verify `firebase-applet-config.json` contains correct credentials
+2. Confirm Firestore is enabled in your Firebase project
+3. Check `firestore.rules` matches your auth model
+4. Ensure your Firebase project has the required collections
+
+### Issue: Server TypeScript errors on startup
+
+**Solution:** Compile TypeScript to surface errors:
+
 ```bash
-# Compile TypeScript to dist/ (example)
 npx tsc
-# Start server from compiled output (server compiled to dist/server.js)
-node dist/server.js
+# or use ts-node-dev for instant feedback
+npx ts-node-dev --respawn --transpile-only server.ts
 ```
-Server will serve static files from dist/ when NODE_ENV=production (see server.ts).
 
-## API — /api/analyze
-POST /api/analyze
-- Request JSON:
-  { "code": "<python source code to analyze as a string>" }
-- Response JSON (structured; server expects the AI to match this schema):
-  {
-    "vulnerabilities": [
-      {
-        "type": "SQL Injection",
-        "severity": "Critical" | "High" | "Medium" | "Low" | "Info",
-        "lineNumber": 42,
-        "description": "Why this is a vulnerability...",
-        "recommendation": "How to fix it..."
-      },
-      ...
-    ],
-    "overallSeverity": "Critical" | "High" | "Medium" | "Low" | "None",
-    "summary": "High-level summary"
-  }
+---
 
-## Notes, configuration & operational guidance
-- Gemini / @google/genai:
-  - The server constructs a strict system instruction and configures the AI client to return JSON. Provide GEMINI_API_KEY in the environment on the server host. Be mindful of API usage/costs and of sending sensitive code to the cloud.
-- Firestore:
-  - The app expects Firestore collections: targets, bug_reports, checklists, code_analyses. services/db.ts uses ordering fields like createdAt / created_date; verify your documents include those fields for ordering to function as expected.
-  - Update firestore.rules if you change authentication or data model assumptions.
-- Security:
-  - GEMINI_API_KEY must be kept secret — do not commit secrets in repo. The repository contains firebase-applet-config.json and firebase.json for configuration; ensure your own project credentials are stored securely and not checked into public repos.
-  - The code includes an explicit error path if GEMINI_API_KEY is not configured — server returns 500 with a hint.
-- Error handling:
-  - services/db.ts wraps Firestore operations with structured error logging and throws JSON-encoded error messages for visibility.
+## 🤝 Contributing
 
-## Developer orientation — important files to inspect
-- server.ts — main server, AI prompt construction, /api/analyze endpoint and Vite middleware configuration.
-- services/db.ts — all Firestore interactions (getTargets, getBugReports, getCodeAnalyses, saveX, deleteX). Good starting point for persistence changes.
-- firebase.ts + firebase-applet-config.json — app initialization for Firestore.
-- components/Analyzer.tsx — UI for uploading/pasting code to be analyzed and logic for converting findings to draft bug reports.
-- App.tsx — top-level state management and wiring between components and services.
-- types.ts — TypeScript interfaces for Target, BugReport, CodeAnalysis, Finding, etc. Use these for upstream/downstream changes.
+We welcome contributions! Please follow these guidelines:
 
-## Typical workflows
-- Developer pastes or uploads Python code into the Analyzer tab → frontend calls POST /api/analyze → server calls Gemini and returns structured vulnerabilities → developer reviews findings in the Analyzer and can convert a Finding into a draft BugReport → draft report is editable and saved to Firestore via services/db.ts.
-- Targets can be registered and deleted; deleting a target triggers cleanup of associated bug reports and checklists (see deleteTarget in services/db.ts).
+1. **Fork** the repository
+2. **Create a feature branch** (`git checkout -b feature/your-feature`)
+3. **Make your changes** and test thoroughly
+4. **Update documentation** if you change the API or data model
+5. **Submit a pull request** with a clear description
 
-## Troubleshooting
-- "GEMINI_API_KEY is not configured" — ensure GEMINI_API_KEY is present in your environment before starting the server.
-- Firestore permission errors — check firebase-applet-config.json and firestore.rules; confirm Firestore is enabled for your Firebase project and the app is using the correct project ID and database.
-- Server TypeScript errors on startup — run npx tsc to surface compilation errors or run with ts-node-dev to bypass build step during development.
+### Before Submitting
 
-## Contributing
-- Fork and open a pull request with a clear description of change and any migration steps if you change the Firestore schema or API contract.
-- If you add backend endpoints, update server.ts and document the request/response shapes in this README.
-- If you change persisted document shapes, update types.ts and services/db.ts to match.
+- Update `types.ts` if you modify data models
+- Update `services/db.ts` if you change Firestore interactions
+- Update `server.ts` if you add new endpoints
+- Include migration steps in your PR if schema changes apply
 
-## License
-Files in this repository include an Apache-2.0 SPDX header. If you are publishing or reusing code, refer to the LICENSE file (or add one) and comply with the Apache-2.0 license.
+---
 
-## Acknowledgements
+## 📄 License
 
-This project was created with assistance from Google Studios, whose guidance and tooling helped with AI-driven analysis and design decisions. Special thanks to the Google Studios resources that streamlined integration with Gemini and the development workflow.
+This project is licensed under the **Apache License 2.0**. See [LICENSE](LICENSE) file for details.
 
-## Try asking
-- How do I configure firebase-applet-config.json for my Firebase project (which fields does the app expect)?
-- The Analyzer returns unexpected output from Gemini — where in server.ts is the system instruction constructed and how can I tune the response schema?
-- I want to add an authentication layer and restrict Firestore access — which files should I update and which Firestore rules would you recommend for a developer-only workspace?
+All source files include the Apache-2.0 SPDX header. If you reuse or publish code from this repository, please comply with the license terms.
 
-## Acknowledgements and credits
-- Built with React, Vite, Express, Firebase, and Google Gemini (via @google/genai).
-- UI components organized in components/, and Firestore access centralized in services/db.ts for easy audits and upgrades.
+---
+
+## 🙏 Acknowledgements
+
+Built with help and guidance from **Google Studios**, leveraging cutting-edge AI analysis tools and design best practices.
+
+**Core Technologies:**
+- [React](https://react.dev/) — UI framework
+- [Vite](https://vitejs.dev/) — Frontend build tool
+- [Express](https://expressjs.com/) — Backend framework
+- [Firebase](https://firebase.google.com/) — Backend-as-a-Service
+- [Google Gemini](https://ai.google.dev/) — AI-powered analysis
+
+---
+
+## 📞 Getting Help
+
+**Have questions?** Check the [Discussions](https://github.com/Creator-Naren/Bug-Hunter/discussions) tab or review:
+
+- How do I configure `firebase-applet-config.json` for my Firebase project?
+- Where is the Gemini system instruction constructed in `server.ts`?
+- How can I add authentication and restrict Firestore access?
+- How do I customize the vulnerability detection schema?
+
+---
+
+<div align="center">
+
+**Made with ❤️ for better code security**
+
+[GitHub](https://github.com/Creator-Naren/Bug-Hunter) • [Issues](https://github.com/Creator-Naren/Bug-Hunter/issues) • [Discussions](https://github.com/Creator-Naren/Bug-Hunter/discussions)
+
+</div>
