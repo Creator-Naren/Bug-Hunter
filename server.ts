@@ -26,37 +26,25 @@ async function startServer() {
         return res.status(500).json({ error: 'GEMINI_API_KEY is not configured on the server.' });
       }
 
-      const systemInstruction = `You are BugHunter AI, a professional security analyst and automated static application security testing (SAST) tool. 
-Your job is to thoroughly analyze the provided Python code snippet for security vulnerabilities, logic flaws, OWASP Top 10 issues, hardcoded secrets, and unsafe coding practices.
+      const systemInstruction = `You are BugHunter Elite AI, an elite security researcher and Automated Static Application Security Testing (SAST) platform engineer.
+Your mission is to perform deep, expert-level vulnerability discovery on Python code.
 
-Be extremely precise. Find actual vulnerabilities (e.g., SQL injection, insecure direct object references, weak cryptography, XSS, directory traversal, insecure use of eval or subprocess, unsafe yaml loading, etc.).
-Only report genuine vulnerabilities or highly questionable code smells that pose security risks.
+Be extremely thorough, precise, and actionable. Uncover security vulnerabilities, OWASP Top 10 risks, logic flaws, broken authentication, hardcoded secrets, unsafe deserialization, SQL injection, RCE, IDOR, SSRF, path traversal, command injection, and insecure cryptographic usage.
 
-You must return a structured JSON response matching the following schema:
-{
-  "type": "object",
-  "properties": {
-    "vulnerabilities": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "type": { "type": "string" },
-          "severity": { "type": "string", "enum": ["Critical", "High", "Medium", "Low", "Info"] },
-          "lineNumber": { "type": "integer" },
-          "description": { "type": "string" },
-          "recommendation": { "type": "string" }
-        },
-        "required": ["type", "severity", "lineNumber", "description", "recommendation"]
-      }
-    },
-    "overallSeverity": { "type": "string", "enum": ["Critical", "High", "Medium", "Low", "None"] },
-    "summary": { "type": "string" }
-  },
-  "required": ["vulnerabilities", "overallSeverity", "summary"]
-}`;
+For EVERY finding, you must provide:
+1. 'type': Clear vulnerability name (e.g., 'SQL Injection via String Formatting', 'Command Injection in Subprocess Call').
+2. 'severity': One of 'Critical', 'High', 'Medium', 'Low', 'Info'.
+3. 'lineNumber': 1-based line number where the core vulnerability starts or triggers.
+4. 'cwe': Standard CWE designation if applicable (e.g., 'CWE-89', 'CWE-78', 'CWE-798').
+5. 'description': Deep explanation of why this code is dangerous and how it works under the hood.
+6. 'impact': Explicit real-world business and technical consequences if exploited.
+7. 'exploitScenario': Step-by-step scenario demonstrating how an attacker could exploit this vulnerability.
+8. 'recommendation': Executive guidance on how to fix and prevent this flaw.
+9. 'remediationCode': Clean, secure Python code snippet demonstrating the exact refactored fix.
 
-      const userPrompt = `Perform a security analysis on this Python code and output the JSON findings:
+Also provide an 'overallSeverity' rating and a comprehensive executive 'summary' assessing the overall security posture of the provided code.`;
+
+      const userPrompt = `Analyze the following Python source code for security vulnerabilities. Produce structured JSON findings according to the schema:
 
 \`\`\`python
 ${code}
@@ -77,24 +65,28 @@ ${code}
                 items: {
                   type: Type.OBJECT,
                   properties: {
-                    type: { type: Type.STRING, description: 'The type/name of vulnerability (e.g. SQL Injection)' },
+                    type: { type: Type.STRING, description: 'Vulnerability title' },
                     severity: { 
                       type: Type.STRING, 
                       enum: ['Critical', 'High', 'Medium', 'Low', 'Info'],
-                      description: 'The severity rating'
+                      description: 'Severity rating'
                     },
-                    lineNumber: { type: Type.INTEGER, description: 'Approximate 1-based line number of the finding' },
-                    description: { type: Type.STRING, description: 'Explanation of the vulnerability' },
-                    recommendation: { type: Type.STRING, description: 'Actionable remediation or code fix' }
+                    lineNumber: { type: Type.INTEGER, description: '1-based line number of finding' },
+                    cwe: { type: Type.STRING, description: 'CWE ID e.g. CWE-89' },
+                    description: { type: Type.STRING, description: 'Detailed vulnerability explanation' },
+                    impact: { type: Type.STRING, description: 'Technical & business impact' },
+                    exploitScenario: { type: Type.STRING, description: 'Step-by-step attack scenario' },
+                    recommendation: { type: Type.STRING, description: 'High level remediation guidance' },
+                    remediationCode: { type: Type.STRING, description: 'Secure code snippet fix' }
                   },
-                  required: ['type', 'severity', 'lineNumber', 'description', 'recommendation']
+                  required: ['type', 'severity', 'lineNumber', 'cwe', 'description', 'impact', 'exploitScenario', 'recommendation', 'remediationCode']
                 }
               },
               overallSeverity: {
                 type: Type.STRING,
                 enum: ['Critical', 'High', 'Medium', 'Low', 'None']
               },
-              summary: { type: Type.STRING, description: 'High-level security summary of the analysis' }
+              summary: { type: Type.STRING, description: 'Executive summary of code security posture' }
             },
             required: ['vulnerabilities', 'overallSeverity', 'summary']
           },

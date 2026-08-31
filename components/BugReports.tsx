@@ -1,20 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   ShieldAlert, 
+  Search,
   Plus, 
+  ArrowLeft,
   Trash2, 
   Edit3, 
   FileDown, 
-  ArrowLeft, 
+  Calendar,
   Target as TargetIcon,
-  ChevronDown,
-  Filter,
   Code,
-  Share2,
-  Bookmark,
-  Calendar
+  FileCode2,
+  CheckCircle,
+  Copy,
+  Check
 } from 'lucide-react';
-import { Target, BugReport } from '../types';
+import { BugReport, Target } from '../types';
 import { saveBugReport, deleteBugReport } from '../services/db';
 
 interface BugReportsProps {
@@ -40,16 +41,14 @@ export const BugReports: React.FC<BugReportsProps> = ({
   newReportInitialState,
   setNewReportInitialState
 }) => {
-  // Filters
-  const [filterTarget, setFilterTarget] = useState<string>('all');
-  const [filterSeverity, setFilterSeverity] = useState<string>('all');
-  const [filterStatus, setFilterStatus] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'severity' | 'date'>('severity');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [severityFilter, setSeverityFilter] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [copiedMd, setCopiedMd] = useState(false);
 
-  // Edit / Form State
-  const [isEditing, setIsEditing] = useState(false);
-  const [formState, setFormState] = useState<BugReport>({
-    id: '',
+  // Form state
+  const [editingReportId, setEditingReportId] = useState<string | null>(null);
+  const [formState, setFormState] = useState<Partial<BugReport>>({
     title: '',
     target_id: '',
     vuln_type: 'SQL Injection',
@@ -58,294 +57,246 @@ export const BugReports: React.FC<BugReportsProps> = ({
     steps_to_reproduce: '',
     impact: '',
     poc: '',
-    status: 'Draft',
-    created_date: ''
+    status: 'Draft'
   });
 
-  // Handle opening New Form with initial states if any
-  React.useEffect(() => {
-    if (isAddingNew) {
+  // Load pre-loaded initial state when creating from AI finding
+  useEffect(() => {
+    if (newReportInitialState) {
       setFormState({
-        id: 'report_' + crypto.randomUUID(),
-        title: newReportInitialState?.title || '',
-        target_id: newReportInitialState?.target_id || (targets[0]?.id || ''),
-        vuln_type: newReportInitialState?.vuln_type || 'SQL Injection',
-        severity: newReportInitialState?.severity || 'High',
-        description: newReportInitialState?.description || '',
-        steps_to_reproduce: newReportInitialState?.steps_to_reproduce || '',
-        impact: newReportInitialState?.impact || '',
-        poc: newReportInitialState?.poc || '',
-        status: newReportInitialState?.status || 'Draft',
-        created_date: new Date().toISOString()
+        title: newReportInitialState.title || '',
+        target_id: newReportInitialState.target_id || (targets[0]?.id || ''),
+        vuln_type: newReportInitialState.vuln_type || 'SQL Injection',
+        severity: newReportInitialState.severity || 'High',
+        description: newReportInitialState.description || '',
+        steps_to_reproduce: newReportInitialState.steps_to_reproduce || '',
+        impact: newReportInitialState.impact || '',
+        poc: newReportInitialState.poc || '',
+        status: newReportInitialState.status || 'Draft'
+      });
+      setEditingReportId(null);
+    } else if (isAddingNew && !editingReportId) {
+      setFormState({
+        title: '',
+        target_id: targets[0]?.id || '',
+        vuln_type: 'SQL Injection',
+        severity: 'High',
+        description: '',
+        steps_to_reproduce: '',
+        impact: '',
+        poc: '',
+        status: 'Draft'
       });
     }
-  }, [isAddingNew, newReportInitialState, targets]);
+  }, [newReportInitialState, isAddingNew]);
 
-  const selectedReport = reports.find(r => r.id === selectedReportId);
+  const selectedReport = reports.find(r => r.id === selectedReportId) || null;
 
-  const severityWeight = {
-    'Critical': 5,
-    'High': 4,
-    'Medium': 3,
-    'Low': 2,
-    'Info': 1
-  };
-
-  // Sort and Filter reports
   const filteredReports = reports.filter(r => {
-    const matchTarget = filterTarget === 'all' || r.target_id === filterTarget;
-    const matchSeverity = filterSeverity === 'all' || r.severity === filterSeverity;
-    const matchStatus = filterStatus === 'all' || r.status === filterStatus;
-    return matchTarget && matchSeverity && matchStatus;
-  }).sort((a, b) => {
-    if (sortBy === 'severity') {
-      return severityWeight[b.severity] - severityWeight[a.severity];
-    } else {
-      return new Date(b.created_date).getTime() - new Date(a.created_date).getTime();
-    }
+    const matchesSearch = r.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.vuln_type.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSev = severityFilter === 'ALL' || r.severity === severityFilter;
+    const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
+    return matchesSearch && matchesSev && matchesStatus;
   });
 
   const handleEditClick = (report: BugReport) => {
+    setEditingReportId(report.id);
     setFormState({ ...report });
-    setIsEditing(true);
+    setIsAddingNew(true);
   };
 
   const handleSaveReport = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formState.title || !formState.target_id) {
-      alert('Please fill out all required fields.');
+    if (!formState.title?.trim()) {
+      alert('Report title is required.');
       return;
     }
 
+    const reportDoc: BugReport = {
+      id: editingReportId || ('bug_' + Date.now()),
+      title: formState.title || 'Untitled Bug',
+      target_id: formState.target_id || (targets[0]?.id || ''),
+      vuln_type: formState.vuln_type || 'Other Vulnerability',
+      severity: (formState.severity as any) || 'High',
+      description: formState.description || '',
+      steps_to_reproduce: formState.steps_to_reproduce || '',
+      impact: formState.impact || '',
+      poc: formState.poc || '',
+      status: (formState.status as any) || 'Draft',
+      created_date: editingReportId ? (selectedReport?.created_date || new Date().toISOString()) : new Date().toISOString()
+    };
+
     try {
-      await saveBugReport(formState);
+      await saveBugReport(reportDoc);
       onRefresh();
-      setIsEditing(false);
       setIsAddingNew(false);
       setNewReportInitialState(null);
-      setSelectedReportId(formState.id);
-    } catch (e) {
-      console.error(e);
-      alert('Failed to save report.');
+      setEditingReportId(null);
+      setSelectedReportId(reportDoc.id);
+    } catch (err) {
+      console.error('Failed to save bug report:', err);
+      alert('Error saving report to database.');
     }
   };
 
-  const handleDeleteClick = async (reportId: string) => {
-    if (!confirm('Are you absolutely sure you want to delete this bug report? This action cannot be undone.')) {
-      return;
-    }
-    try {
-      await deleteBugReport(reportId);
-      setSelectedReportId(null);
-      onRefresh();
-    } catch (e) {
-      console.error(e);
-      alert('Failed to delete report.');
+  const handleDeleteClick = async (id: string) => {
+    if (confirm('Are you sure you want to delete this bug report permanently?')) {
+      try {
+        await deleteBugReport(id);
+        onRefresh();
+        setSelectedReportId(null);
+      } catch (err) {
+        console.error('Error deleting report:', err);
+      }
     }
   };
 
-  // Generate HackerOne/Bugcrowd compatible Markdown report
   const handleExportMarkdown = (report: BugReport) => {
-    const targetName = targets.find(t => t.id === report.target_id)?.name || 'Unknown Target';
+    const target = targets.find(t => t.id === report.target_id);
+
     const markdownContent = `# ${report.title}
 
-## Summary
-- **Target**: ${targetName}
-- **Vulnerability Type**: ${report.vuln_type}
-- **Severity**: ${report.severity}
-- **Status**: ${report.status}
-- **Report Date**: ${new Date(report.created_date).toLocaleDateString()}
-
-## Description
-${report.description || 'No description provided.'}
-
-## Steps to Reproduce
-${report.steps_to_reproduce || 'No reproduction steps provided.'}
-
-## Proof of Concept (PoC)
-\`\`\`python
-${report.poc || '# No PoC code provided.'}
-\`\`\`
-
-## Impact
-${report.impact || 'No impact analysis provided.'}
+**Vulnerability Type:** ${report.vuln_type}
+**Severity:** ${report.severity}
+**Target:** ${target?.name || 'Unspecified Target'} (${target?.url || 'N/A'})
+**Status:** ${report.status}
+**Date Reported:** ${new Date(report.created_date).toLocaleDateString()}
 
 ---
-_Report generated automatically via BugHunter Secure Workspace_
+
+## 1. Summary / Description
+${report.description}
+
+## 2. Steps to Reproduce
+${report.steps_to_reproduce}
+
+## 3. Proof of Concept (PoC)
+\`\`\`
+${report.poc}
+\`\`\`
+
+## 4. Impact
+${report.impact}
 `;
 
-    const blob = new Blob([markdownContent], { type: 'text/markdown;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `${report.title.toLowerCase().replace(/[^a-z0-9]+/g, '_')}_vulnerability_report.md`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    navigator.clipboard.writeText(markdownContent);
+    setCopiedMd(true);
+    setTimeout(() => setCopiedMd(false), 2000);
   };
 
   return (
-    <div className="flex-1 flex overflow-hidden font-mono text-zinc-300 relative scanline-overlay">
+    <div className="flex-1 flex flex-col md:flex-row h-full overflow-hidden bg-[#0A0B10]">
       
-      {/* LEFT COLUMN: Report Registry Index */}
-      <div className={`w-80 border-r border-[#00FF41]/20 flex flex-col bg-[#060608] shrink-0 h-full ${selectedReport || isAddingNew || isEditing ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-4 border-b border-[#00FF41]/20 flex items-center justify-between shrink-0">
-          <span className="text-xs font-bold text-[#00FF41] tracking-widest flex items-center gap-1.5">
-            <ShieldAlert className="w-4 h-4 text-[#00FF41]" />
-            BUG_INVENTORY
-          </span>
-          <button 
-            onClick={() => {
-              setNewReportInitialState(null);
-              setIsAddingNew(true);
-              setIsEditing(false);
-              setSelectedReportId(null);
-            }}
-            className="p-1 border border-[#00FF41]/30 hover:bg-[#00FF41]/10 text-[#00FF41] hover:border-[#00FF41] transition-colors"
-            title="Create New Bug Report"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        </div>
+      {/* Left Inventory File List Panel */}
+      <div className={`w-full md:w-80 lg:w-96 border-r border-[#1E2235] bg-[#0D0E17] flex flex-col h-full ${selectedReportId || isAddingNew ? 'hidden md:flex' : 'flex'}`}>
 
-        {/* Filters Panel */}
-        <div className="p-4 border-b border-[#00FF41]/10 space-y-3 bg-zinc-950 shrink-0 text-[10px]">
-          <div className="flex items-center justify-between text-zinc-500 font-bold">
-            <span className="flex items-center gap-1 uppercase"><Filter className="w-3.5 h-3.5 text-cyan-400" /> AUDIT_FILTERS</span>
-            <button 
+        {/* Panel Header */}
+        <div className="p-4 border-b border-[#1E2235] bg-[#0A0B12] space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-emerald-400" />
+              <span className="text-xs font-bold tracking-wider text-white uppercase font-mono">BUG_INVENTORY</span>
+            </div>
+            <button
               onClick={() => {
-                setFilterTarget('all');
-                setFilterSeverity('all');
-                setFilterStatus('all');
+                setNewReportInitialState(null);
+                setEditingReportId(null);
+                setIsAddingNew(true);
+                setSelectedReportId(null);
               }}
-              className="hover:text-white hover:underline uppercase"
+              className="px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold tracking-wider font-mono transition-all flex items-center gap-1"
             >
-              RESET
+              <Plus className="w-3.5 h-3.5" />
+              <span>FILE REPORT</span>
             </button>
           </div>
 
-          <div className="grid grid-cols-1 gap-2">
-            <div>
-              <span className="text-zinc-600 block mb-1 uppercase font-bold">TARGET PROGRAM</span>
-              <select 
-                value={filterTarget} 
-                onChange={(e) => setFilterTarget(e.target.value)}
-                className="w-full bg-[#060608] border border-zinc-900 px-2 py-1.5 text-zinc-300 focus:outline-none"
-              >
-                <option value="all">ALL TARGETS</option>
-                {targets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
-            </div>
+          {/* Search Box */}
+          <div className="relative">
+            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="Search vulnerability titles..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-[#06070B] border border-[#1E2235] text-xs text-white pl-9 pr-3 py-2 rounded-lg focus:outline-none focus:border-emerald-500/50 font-mono placeholder:text-zinc-600"
+            />
+          </div>
 
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-zinc-600 block mb-1 uppercase font-bold">SEVERITY</span>
-                <select 
-                  value={filterSeverity} 
-                  onChange={(e) => setFilterSeverity(e.target.value)}
-                  className="w-full bg-[#060608] border border-zinc-900 px-2 py-1.5 text-zinc-300 focus:outline-none"
-                >
-                  <option value="all">ALL</option>
-                  <option value="Critical">Critical</option>
-                  <option value="High">High</option>
-                  <option value="Medium">Medium</option>
-                  <option value="Low">Low</option>
-                  <option value="Info">Info</option>
-                </select>
-              </div>
+          {/* Filter dropdowns */}
+          <div className="grid grid-cols-2 gap-2 text-[10px] font-mono">
+            <select
+              value={severityFilter}
+              onChange={(e) => setSeverityFilter(e.target.value)}
+              className="bg-[#06070B] border border-[#1E2235] text-zinc-300 p-1.5 rounded-lg focus:outline-none"
+            >
+              <option value="ALL">ALL SEVERITIES</option>
+              <option value="Critical">CRITICAL</option>
+              <option value="High">HIGH</option>
+              <option value="Medium">MEDIUM</option>
+              <option value="Low">LOW</option>
+              <option value="Info">INFO</option>
+            </select>
 
-              <div>
-                <span className="text-zinc-600 block mb-1 uppercase font-bold">STATUS</span>
-                <select 
-                  value={filterStatus} 
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full bg-[#060608] border border-zinc-900 px-2 py-1.5 text-zinc-300 focus:outline-none"
-                >
-                  <option value="all">ALL</option>
-                  <option value="Draft">Draft</option>
-                  <option value="Submitted">Submitted</option>
-                  <option value="Accepted">Accepted</option>
-                  <option value="Rejected">Rejected</option>
-                  <option value="Duplicate">Duplicate</option>
-                </select>
-              </div>
-            </div>
-
-            <div>
-              <span className="text-zinc-600 block mb-1 uppercase font-bold">SORT BY</span>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => setSortBy('severity')} 
-                  className={`flex-1 py-1 text-center border font-bold ${
-                    sortBy === 'severity' ? 'border-[#00FF41] text-[#00FF41] bg-[#00FF41]/5' : 'border-zinc-900 text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  SEVERITY
-                </button>
-                <button 
-                  onClick={() => setSortBy('date')} 
-                  className={`flex-1 py-1 text-center border font-bold ${
-                    sortBy === 'date' ? 'border-[#00FF41] text-[#00FF41] bg-[#00FF41]/5' : 'border-zinc-900 text-zinc-500 hover:text-zinc-300'
-                  }`}
-                >
-                  DATE
-                </button>
-              </div>
-            </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="bg-[#06070B] border border-[#1E2235] text-zinc-300 p-1.5 rounded-lg focus:outline-none"
+            >
+              <option value="ALL">ALL STATUSES</option>
+              <option value="Draft">DRAFT</option>
+              <option value="Submitted">SUBMITTED</option>
+              <option value="Accepted">ACCEPTED</option>
+              <option value="Rejected">REJECTED</option>
+              <option value="Duplicate">DUPLICATE</option>
+            </select>
           </div>
         </div>
 
-        {/* Index List */}
-        <div className="flex-1 overflow-y-auto divide-y divide-zinc-900">
+        {/* Reports Feed */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {filteredReports.length === 0 ? (
-            <div className="p-8 text-center text-zinc-600 text-xs italic">
-              No reports found in registry index.
+            <div className="p-8 text-center text-zinc-500 text-xs font-mono space-y-2">
+              <FileCode2 className="w-8 h-8 text-zinc-600 mx-auto stroke-[1.5]" />
+              <div>NO BUG REPORTS FOUND</div>
+              <div className="text-[10px] text-zinc-600">File a report or convert AI findings to start tracking.</div>
             </div>
           ) : (
-            filteredReports.map((r) => {
-              const active = selectedReportId === r.id;
-              const target = targets.find(t => t.id === r.target_id);
-              
+            filteredReports.map((report) => {
+              const isSelected = report.id === selectedReportId && !isAddingNew;
+              const target = targets.find(t => t.id === report.target_id);
+
               return (
-                <div 
-                  key={r.id}
+                <div
+                  key={report.id}
                   onClick={() => {
-                    setSelectedReportId(r.id);
                     setIsAddingNew(false);
-                    setIsEditing(false);
+                    setSelectedReportId(report.id);
                   }}
-                  className={`p-4 text-left cursor-pointer transition-all duration-150 relative ${
-                    active 
-                      ? 'bg-cyan-500/5 border-l-2 border-cyan-400' 
-                      : 'hover:bg-zinc-900/40'
+                  className={`p-3.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                    isSelected
+                      ? 'bg-emerald-500/10 border-emerald-500/50 text-white shadow-[0_0_15px_rgba(0,255,102,0.08)]'
+                      : 'bg-[#0A0B12] border-[#1E2235] text-zinc-400 hover:bg-[#10121D] hover:text-zinc-200'
                   }`}
                 >
-                  <div className="space-y-1 mb-1.5">
-                    <div className="flex items-start justify-between gap-2">
-                      <span className={`font-bold text-xs truncate max-w-[150px] ${active ? 'text-cyan-400 glow-text-cyan' : 'text-white'}`}>
-                        {r.title}
-                      </span>
-                      <span className={`text-[8px] font-bold px-1.5 py-0.5 border shrink-0 ${
-                        r.severity === 'Critical' ? 'bg-red-950/40 border-red-500/40 text-red-400' :
-                        r.severity === 'High' ? 'bg-orange-950/40 border-orange-500/40 text-orange-400' :
-                        r.severity === 'Medium' ? 'bg-yellow-950/40 border-yellow-500/40 text-yellow-400' :
-                        'bg-zinc-900 border-zinc-800 text-zinc-400'
-                      }`}>
-                        {r.severity}
-                      </span>
-                    </div>
-                    <div className="text-[10px] text-zinc-500 flex items-center justify-between">
-                      <span className="truncate">{target?.name || 'Unknown Target'}</span>
-                      <span className="shrink-0 text-zinc-600">{r.vuln_type}</span>
-                    </div>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="font-bold text-xs text-white truncate font-sans">{report.title}</span>
+                    <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded border shrink-0 ${
+                      report.severity === 'Critical' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                      report.severity === 'High' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                      report.severity === 'Medium' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' :
+                      'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                    }`}>
+                      {report.severity}
+                    </span>
                   </div>
-                  <div className="flex items-center justify-between text-[9px] pt-1 border-t border-zinc-900/40">
-                    <span className="text-zinc-600">
-                      Filed: {new Date(r.created_date).toLocaleDateString()}
-                    </span>
-                    <span className="text-cyan-400/80 uppercase font-bold">
-                      {r.status}
-                    </span>
+
+                  <div className="text-[10px] font-mono text-cyan-400 truncate mb-2">{report.vuln_type}</div>
+
+                  <div className="flex items-center justify-between text-[10px] font-mono pt-1 border-t border-[#1E2235]/60">
+                    <span className="text-zinc-500 truncate max-w-[140px]">{target?.name || 'General Target'}</span>
+                    <span className="text-zinc-400 uppercase font-bold">{report.status}</span>
                   </div>
                 </div>
               );
@@ -354,84 +305,81 @@ _Report generated automatically via BugHunter Secure Workspace_
         </div>
       </div>
 
-      {/* RIGHT WORKSPACE: Detail or Form */}
-      <div className="flex-1 flex flex-col bg-zinc-950 overflow-hidden">
-        {isAddingNew || isEditing ? (
-          /* FORM VIEW */
-          <div className="flex-1 p-8 overflow-y-auto space-y-6">
-            <div className="flex items-center justify-between border-b border-zinc-900 pb-4 shrink-0">
-              <span className="text-xs font-bold text-cyan-400 tracking-widest flex items-center gap-2">
-                <Bookmark className="w-5 h-5 text-cyan-400" />
-                {isEditing ? 'UPDATE_VULNERABILITY_FILE_RECORD' : 'COMPILE_NEW_VULNERABILITY_REPORT'}
-              </span>
-              <button 
-                onClick={() => {
-                  setIsAddingNew(false);
-                  setIsEditing(false);
-                }}
-                className="flex items-center gap-1 text-xs text-zinc-400 hover:text-white border border-zinc-800 px-2.5 py-1"
-              >
-                <ArrowLeft className="w-4 h-4" /> CANCEL
-              </button>
+      {/* Right Content Workspace */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden bg-[#0A0B10]">
+
+        {isAddingNew ? (
+          /* CREATE / EDIT BUG REPORT FORM */
+          <div className="flex-1 p-6 lg:p-8 overflow-y-auto space-y-6">
+            <div className="flex items-center justify-between border-b border-[#1E2235] pb-4">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setIsAddingNew(false)}
+                  className="md:hidden p-1.5 rounded-lg border border-[#1E2235] text-zinc-400 hover:text-white"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <h2 className="text-lg font-bold text-white tracking-wide font-sans flex items-center gap-2">
+                  <ShieldAlert className="w-5 h-5 text-emerald-400" />
+                  {editingReportId ? 'EDIT VULNERABILITY RECORD' : 'COMPILE VULNERABILITY BUG REPORT'}
+                </h2>
+              </div>
             </div>
 
-            <form onSubmit={handleSaveReport} className="space-y-6 max-w-4xl text-xs">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <label className="block text-zinc-400 font-bold tracking-wider">REPORT TITLE <span className="text-red-500">*</span></label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="e.g. Remote Code Execution via deserialization in /api/v2/config"
-                    value={formState.title}
-                    onChange={(e) => setFormState(prev => ({ ...prev, title: e.target.value }))}
-                    className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-zinc-400 font-bold tracking-wider">TARGET PROGRAM <span className="text-red-500">*</span></label>
-                  <select 
-                    required
-                    value={formState.target_id}
-                    onChange={(e) => setFormState(prev => ({ ...prev, target_id: e.target.value }))}
-                    className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none"
-                  >
-                    <option value="" disabled>Select Target</option>
-                    {targets.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
+            <form onSubmit={handleSaveReport} className="space-y-6 max-w-4xl text-xs font-mono">
+              <div className="space-y-2">
+                <label className="block text-zinc-400 font-bold uppercase">REPORT TITLE *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. [SQLi] Unauthenticated User ID parameter bypass on /api/user"
+                  value={formState.title}
+                  onChange={(e) => setFormState(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50"
+                />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
-                  <label className="block text-zinc-400 font-bold tracking-wider">VULNERABILITY TYPE</label>
-                  <select 
-                    value={formState.vuln_type}
-                    onChange={(e) => setFormState(prev => ({ ...prev, vuln_type: e.target.value }))}
-                    className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none"
+                  <label className="block text-zinc-400 font-bold uppercase">LINKED TARGET *</label>
+                  <select
+                    value={formState.target_id}
+                    onChange={(e) => setFormState(prev => ({ ...prev, target_id: e.target.value }))}
+                    className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50"
                   >
-                    <option value="SQL Injection">SQL Injection</option>
-                    <option value="Cross-Site Scripting (XSS)">Cross-Site Scripting (XSS)</option>
-                    <option value="Server-Side Request Forgery (SSRF)">Server-Side Request Forgery (SSRF)</option>
-                    <option value="Insecure Direct Object Reference (IDOR)">Insecure Direct Object Reference (IDOR)</option>
-                    <option value="Remote Code Execution (RCE)">Remote Code Execution (RCE)</option>
-                    <option value="Cross-Site Request Forgery (CSRF)">Cross-Site Request Forgery (CSRF)</option>
-                    <option value="Path Traversal">Path Traversal</option>
-                    <option value="Subdomain Takeover">Subdomain Takeover</option>
-                    <option value="Broken Authentication">Broken Authentication</option>
-                    <option value="Information Disclosure">Information Disclosure</option>
-                    <option value="Open Redirect">Open Redirect</option>
-                    <option value="Other / Business Logic Flaw">Other / Business Logic Flaw</option>
+                    {targets.map(t => (
+                      <option key={t.id} value={t.id}>{t.name} ({t.platform})</option>
+                    ))}
+                    {targets.length === 0 && <option value="">No targets registered</option>}
                   </select>
                 </div>
 
                 <div className="space-y-2">
-                  <label className="block text-zinc-400 font-bold tracking-wider">SEVERITY RATING</label>
-                  <select 
+                  <label className="block text-zinc-400 font-bold uppercase">VULNERABILITY CATEGORY *</label>
+                  <select
+                    value={formState.vuln_type}
+                    onChange={(e) => setFormState(prev => ({ ...prev, vuln_type: e.target.value }))}
+                    className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50"
+                  >
+                    <option value="SQL Injection">SQL Injection</option>
+                    <option value="Command Injection">Command Injection</option>
+                    <option value="Cross-Site Scripting (XSS)">Cross-Site Scripting (XSS)</option>
+                    <option value="Insecure Direct Object Reference (IDOR)">IDOR</option>
+                    <option value="Server-Side Request Forgery (SSRF)">SSRF</option>
+                    <option value="Broken Authentication">Broken Authentication</option>
+                    <option value="Path Traversal">Path Traversal</option>
+                    <option value="Hardcoded Secret / Credentials">Hardcoded Secret</option>
+                    <option value="Unsafe Deserialization">Unsafe Deserialization</option>
+                    <option value="Other Security Vulnerability">Other Security Flaw</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="block text-zinc-400 font-bold uppercase">SEVERITY RATING *</label>
+                  <select
                     value={formState.severity}
                     onChange={(e) => setFormState(prev => ({ ...prev, severity: e.target.value as any }))}
-                    className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none"
+                    className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50"
                   >
                     <option value="Critical">Critical</option>
                     <option value="High">High</option>
@@ -440,221 +388,238 @@ _Report generated automatically via BugHunter Secure Workspace_
                     <option value="Info">Info</option>
                   </select>
                 </div>
-
-                <div className="space-y-2">
-                  <label className="block text-zinc-400 font-bold tracking-wider">TRIAGE STATUS</label>
-                  <select 
-                    value={formState.status}
-                    onChange={(e) => setFormState(prev => ({ ...prev, status: e.target.value as any }))}
-                    className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none"
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Submitted">Submitted</option>
-                    <option value="Accepted">Accepted / Triaged</option>
-                    <option value="Rejected">Rejected / N/A</option>
-                    <option value="Duplicate">Duplicate</option>
-                  </select>
-                </div>
               </div>
 
               <div className="space-y-2">
-                <label className="block text-zinc-400 font-bold tracking-wider">VULNERABILITY DESCRIPTION</label>
-                <textarea 
+                <label className="block text-emerald-400 font-bold uppercase">VULNERABILITY DESCRIPTION</label>
+                <textarea
                   rows={4}
-                  placeholder="Detail the root cause of the vulnerability. Why does this happen?"
+                  placeholder="Detailed breakdown of the flaw..."
                   value={formState.description}
                   onChange={(e) => setFormState(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none leading-relaxed"
+                  className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50 leading-relaxed font-sans text-xs"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-zinc-400 font-bold tracking-wider">STEPS TO REPRODUCE (Numbered layout)</label>
-                <textarea 
-                  rows={5}
-                  placeholder="1. Navigate to target URL&#10;2. Inject the payload...&#10;3. Observe response..."
+                <label className="block text-cyan-400 font-bold uppercase">STEPS TO REPRODUCE</label>
+                <textarea
+                  rows={4}
+                  placeholder="1. Navigate to endpoint...&#10;2. Inject payload...&#10;3. Observe response..."
                   value={formState.steps_to_reproduce}
                   onChange={(e) => setFormState(prev => ({ ...prev, steps_to_reproduce: e.target.value }))}
-                  className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none leading-relaxed"
+                  className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50 leading-relaxed font-mono text-xs"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-zinc-400 font-bold tracking-wider">PROOF_OF_CONCEPT (PoC Code / Payloads)</label>
-                <textarea 
+                <label className="block text-yellow-400 font-bold uppercase">PROOF OF CONCEPT (PoC / PAYLOADS)</label>
+                <textarea
                   rows={5}
-                  placeholder="GET /api/v2/config?id=1' UNION SELECT NULL-- HTTP/1.1&#10;Host: api.acme.com"
+                  placeholder="GET /api/v2/user?id=1' OR 1=1-- HTTP/1.1&#10;Host: target.com"
                   value={formState.poc}
                   onChange={(e) => setFormState(prev => ({ ...prev, poc: e.target.value }))}
-                  className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none font-mono text-[11px]"
+                  className="w-full bg-[#07080D] border border-[#1E2235] p-3.5 text-emerald-400 rounded-lg focus:outline-none focus:border-emerald-500/50 leading-relaxed font-mono text-xs"
                 />
               </div>
 
               <div className="space-y-2">
-                <label className="block text-zinc-400 font-bold tracking-wider">REAL WORLD SECURITY IMPACT</label>
-                <textarea 
+                <label className="block text-rose-400 font-bold uppercase">TECHNICAL & BUSINESS IMPACT</label>
+                <textarea
                   rows={3}
-                  placeholder="Explain what an attacker can achieve with this exploit (e.g. read user credentials, hijack accounts, control servers)."
+                  placeholder="Explain consequence (e.g., total database compromise, privilege escalation)..."
                   value={formState.impact}
                   onChange={(e) => setFormState(prev => ({ ...prev, impact: e.target.value }))}
-                  className="w-full bg-[#060608] border border-zinc-800 px-3 py-2.5 text-white focus:outline-none focus:border-cyan-400 rounded-none leading-relaxed"
+                  className="w-full bg-[#0D0E17] border border-[#1E2235] px-3.5 py-2.5 text-white rounded-lg focus:outline-none focus:border-emerald-500/50 leading-relaxed font-sans text-xs"
                 />
               </div>
 
-              <button 
-                type="submit"
-                className="w-full md:w-auto px-6 py-3 bg-zinc-900 border border-cyan-400 text-cyan-400 hover:bg-cyan-400/10 font-bold text-xs tracking-widest transition-all shadow-[0_0_10px_rgba(0,229,255,0.1)] hover:shadow-[0_0_15px_rgba(0,229,255,0.2)] rounded-none uppercase"
-              >
-                COMMIT_REPORT_RECORD
-              </button>
+              <div className="flex items-center gap-3 pt-2">
+                <button
+                  type="submit"
+                  className="px-6 py-2.5 rounded-lg bg-emerald-500/20 border border-emerald-500/50 text-emerald-400 hover:bg-emerald-500/30 font-bold text-xs tracking-wider uppercase transition-all shadow-[0_0_15px_rgba(0,255,102,0.12)]"
+                >
+                  SAVE BUG REPORT RECORD
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingNew(false)}
+                  className="px-4 py-2.5 rounded-lg bg-[#141724] border border-[#252A3F] text-zinc-400 hover:text-white font-semibold text-xs transition-all"
+                >
+                  CANCEL
+                </button>
+              </div>
             </form>
           </div>
         ) : selectedReport ? (
-          /* DETAILS VIEW */
-          <div className="flex-1 flex flex-col overflow-hidden">
+          /* SELECTED REPORT DETAILS VIEW */
+          <div className="flex-1 flex flex-col h-full overflow-hidden">
             
-            {/* Details Header */}
-            <div className="p-6 border-b border-zinc-900 bg-zinc-950 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+            {/* Top Details Action Bar */}
+            <div className="p-6 border-b border-[#1E2235] bg-[#0D0E17] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3">
-                <button 
+                <button
                   onClick={() => setSelectedReportId(null)}
-                  className="md:hidden p-1.5 border border-zinc-800 text-zinc-400 hover:text-white mr-1"
+                  className="md:hidden p-1.5 rounded-lg border border-[#1E2235] text-zinc-400 hover:text-white"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
                 <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h2 className="text-lg font-bold text-white tracking-widest uppercase flex items-center gap-1">
-                      <ShieldAlert className="w-4.5 h-4.5 text-cyan-400" />
-                      {selectedReport.title}
-                    </h2>
-                  </div>
-                  <div className="text-xs text-zinc-500 flex items-center gap-2 mt-1">
-                    <TargetIcon className="w-3.5 h-3.5" />
-                    <span>TARGET:</span>
-                    <span className="text-zinc-300 font-bold">
-                      {targets.find(t => t.id === selectedReport.target_id)?.name || 'Unknown Target'}
+                  <h2 className="text-xl font-bold text-white font-sans">{selectedReport.title}</h2>
+                  <div className="text-xs font-mono text-zinc-400 flex items-center gap-3 mt-1">
+                    <span className="flex items-center gap-1">
+                      <TargetIcon className="w-3.5 h-3.5 text-emerald-400" />
+                      <span>TARGET:</span>
+                      <strong className="text-zinc-200">
+                        {targets.find(t => t.id === selectedReport.target_id)?.name || 'General Target'}
+                      </strong>
                     </span>
-                    <span className="text-zinc-700">|</span>
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>{new Date(selectedReport.created_date).toLocaleDateString()}</span>
+                    <span>|</span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>{new Date(selectedReport.created_date).toLocaleDateString()}</span>
+                    </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
-                <button 
+              <div className="flex items-center gap-2 shrink-0 font-mono">
+                <button
                   onClick={() => handleExportMarkdown(selectedReport)}
-                  className="p-1.5 border border-cyan-400/30 text-cyan-400 hover:bg-cyan-400/10 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-3 py-1.5"
-                  title="Export Report as HackerOne Markdown"
+                  className="px-3.5 py-2 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 text-xs font-bold tracking-wider flex items-center gap-1.5 transition-all"
                 >
-                  <FileDown className="w-4 h-4" />
-                  EXPORT_MD
+                  {copiedMd ? (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span className="text-emerald-400">MARKDOWN COPIED!</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-4 h-4" />
+                      <span>EXPORT MARKDOWN</span>
+                    </>
+                  )}
                 </button>
-                <button 
+
+                <button
                   onClick={() => handleEditClick(selectedReport)}
-                  className="p-1.5 border border-[#00FF41]/30 text-[#00FF41] hover:bg-[#00FF41]/10 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-3 py-1.5"
+                  className="p-2 rounded-lg bg-[#141724] border border-[#252A3F] text-zinc-300 hover:text-white transition-all"
                   title="Edit Record"
                 >
                   <Edit3 className="w-4 h-4" />
-                  EDIT_BUG
                 </button>
-                <button 
+
+                <button
                   onClick={() => handleDeleteClick(selectedReport.id)}
-                  className="p-1.5 border border-red-500/20 text-red-500 hover:bg-red-500/10 flex items-center gap-1.5 text-[10px] font-bold tracking-widest px-3 py-1.5"
+                  className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 hover:bg-rose-500/20 transition-all"
                   title="Delete Record"
                 >
                   <Trash2 className="w-4 h-4" />
-                  DESTROY
                 </button>
               </div>
             </div>
 
-            {/* Quick Badges */}
-            <div className="px-6 py-3 border-b border-zinc-900 bg-zinc-950 flex items-center gap-4 text-xs shrink-0 font-mono">
-              <div className="flex items-center gap-1.5">
+            {/* Quick Badges Row */}
+            <div className="px-6 py-3 border-b border-[#1E2235] bg-[#0A0B12] flex items-center gap-6 text-xs font-mono shrink-0">
+              <div className="flex items-center gap-2">
                 <span className="text-zinc-500">SEVERITY:</span>
-                <span className={`font-bold px-2 py-0.5 border ${
-                  selectedReport.severity === 'Critical' ? 'bg-red-950/40 border-red-500/40 text-red-400' :
-                  selectedReport.severity === 'High' ? 'bg-orange-950/40 border-orange-500/40 text-orange-400' :
-                  selectedReport.severity === 'Medium' ? 'bg-yellow-950/40 border-yellow-500/40 text-yellow-400' :
-                  'bg-zinc-900 border-zinc-800 text-zinc-400'
+                <span className={`font-bold px-2.5 py-0.5 rounded border ${
+                  selectedReport.severity === 'Critical' ? 'bg-rose-500/20 text-rose-300 border-rose-500/30' :
+                  selectedReport.severity === 'High' ? 'bg-amber-500/20 text-amber-300 border-amber-500/30' :
+                  selectedReport.severity === 'Medium' ? 'bg-yellow-500/20 text-yellow-300 border-yellow-500/30' :
+                  'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
                 }`}>
                   {selectedReport.severity}
                 </span>
               </div>
-              <span className="text-zinc-800">|</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-zinc-500">TYPE:</span>
+
+              <span>|</span>
+
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500">CATEGORY:</span>
                 <span className="text-cyan-400 font-bold">{selectedReport.vuln_type}</span>
               </div>
-              <span className="text-zinc-800">|</span>
-              <div className="flex items-center gap-1.5">
+
+              <span>|</span>
+
+              <div className="flex items-center gap-2">
                 <span className="text-zinc-500">STATUS:</span>
-                <span className="text-zinc-300 font-bold uppercase">{selectedReport.status}</span>
+                <span className="text-zinc-200 font-bold uppercase">{selectedReport.status}</span>
               </div>
             </div>
 
-            {/* Details Content */}
-            <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#09090b]">
-              {/* Description block */}
-              <div className="space-y-2 border border-zinc-900 bg-zinc-950 p-5 rounded-none">
-                <span className="text-[10px] font-bold text-[#00FF41] tracking-widest block uppercase">VULNERABILITY DESCRIPTION</span>
-                <p className="text-xs leading-relaxed text-zinc-300 whitespace-pre-line font-mono bg-zinc-950 p-3 border border-zinc-900/60 rounded">
-                  {selectedReport.description || 'No description provided.'}
+            {/* Report Document Body */}
+            <div className="flex-1 overflow-y-auto p-6 lg:p-8 space-y-6">
+
+              {/* Description Block */}
+              <div className="p-5 rounded-xl border border-[#1E2235] bg-[#0D0E17] space-y-2">
+                <span className="text-[10px] font-mono font-bold text-emerald-400 tracking-wider uppercase block">
+                  VULNERABILITY DESCRIPTION
+                </span>
+                <p className="text-xs font-sans leading-relaxed text-zinc-200 whitespace-pre-line bg-[#07080D] p-4 rounded-lg border border-[#1B1E2E]">
+                  {selectedReport.description || 'No description available.'}
                 </p>
               </div>
 
               {/* Steps to Reproduce */}
-              <div className="space-y-2 border border-zinc-900 bg-zinc-950 p-5 rounded-none">
-                <span className="text-[10px] font-bold text-cyan-400 tracking-widest block uppercase">STEPS TO REPRODUCE</span>
-                <p className="text-xs leading-relaxed text-zinc-300 whitespace-pre-line font-mono bg-zinc-950 p-3 border border-zinc-900/60 rounded">
-                  {selectedReport.steps_to_reproduce || 'No steps to reproduce listed.'}
-                </p>
-              </div>
-
-              {/* PoC code */}
-              <div className="space-y-2 border border-zinc-900 bg-zinc-950 p-5 rounded-none">
-                <span className="text-[10px] font-bold text-yellow-500 tracking-widest block uppercase flex items-center gap-1.5">
-                  <Code className="w-4 h-4" />
-                  PROOF_OF_CONCEPT (PoC)
+              <div className="p-5 rounded-xl border border-[#1E2235] bg-[#0D0E17] space-y-2">
+                <span className="text-[10px] font-mono font-bold text-cyan-400 tracking-wider uppercase block">
+                  STEPS TO REPRODUCE
                 </span>
-                <pre className="font-mono text-xs bg-[#060608] border border-zinc-900 p-4 text-[#00FF41]/90 overflow-x-auto whitespace-pre rounded">
-                  {selectedReport.poc || '# No exploit code listed.'}
+                <pre className="text-xs font-mono leading-relaxed text-zinc-200 whitespace-pre-wrap bg-[#07080D] p-4 rounded-lg border border-[#1B1E2E]">
+                  {selectedReport.steps_to_reproduce || 'No steps to reproduce recorded.'}
                 </pre>
               </div>
 
-              {/* Impact analysis */}
-              <div className="space-y-2 border border-zinc-900 bg-zinc-950 p-5 rounded-none">
-                <span className="text-[10px] font-bold text-red-400 tracking-widest block uppercase">REAL_WORLD_SECURITY_IMPACT</span>
-                <p className="text-xs leading-relaxed text-zinc-300 whitespace-pre-line font-mono bg-zinc-950 p-3 border border-zinc-900/60 rounded">
+              {/* Proof of Concept Code */}
+              <div className="p-5 rounded-xl border border-[#1E2235] bg-[#0D0E17] space-y-2">
+                <span className="text-[10px] font-mono font-bold text-yellow-400 tracking-wider uppercase flex items-center gap-1.5">
+                  <Code className="w-4 h-4" />
+                  PROOF OF CONCEPT (PoC / EXPLOIT PAYLOAD)
+                </span>
+                <pre className="bg-[#06070B] p-4 rounded-lg border border-[#1E2235] text-emerald-400 font-mono text-xs overflow-x-auto whitespace-pre leading-relaxed">
+                  {selectedReport.poc || '# No exploit code provided.'}
+                </pre>
+              </div>
+
+              {/* Impact Analysis */}
+              <div className="p-5 rounded-xl border border-[#1E2235] bg-[#0D0E17] space-y-2">
+                <span className="text-[10px] font-mono font-bold text-rose-400 tracking-wider uppercase block">
+                  TECHNICAL & BUSINESS IMPACT
+                </span>
+                <p className="text-xs font-sans leading-relaxed text-zinc-200 whitespace-pre-line bg-[#07080D] p-4 rounded-lg border border-[#1B1E2E]">
                   {selectedReport.impact || 'No impact analysis recorded.'}
                 </p>
               </div>
+
             </div>
 
           </div>
         ) : (
-          /* NO SELECTION DEFAULT */
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-zinc-500 space-y-4">
+          /* DEFAULT NO SELECTION VIEW */
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-zinc-500 space-y-4 font-mono">
             <ShieldAlert className="w-12 h-12 text-zinc-700 stroke-[1.5]" />
             <div className="text-center space-y-1">
-              <span className="text-xs font-bold tracking-widest text-zinc-400 block uppercase">NO_BUG_REPORT_SELECTED</span>
-              <p className="text-[10px] text-zinc-600 max-w-sm mx-auto leading-relaxed">
-                Select a vulnerability from the left inventory file tree or click file new report to compile exploit notes, steps, and export Markdown report.
+              <span className="text-xs font-bold tracking-widest text-zinc-300 uppercase block font-sans">
+                NO BUG REPORT SELECTED
+              </span>
+              <p className="text-[10px] text-zinc-500 max-w-sm mx-auto leading-relaxed">
+                Select a vulnerability from the left inventory feed or click 'FILE REPORT' to compile a report.
               </p>
             </div>
-            <button 
+            <button
               onClick={() => {
                 setNewReportInitialState(null);
+                setEditingReportId(null);
                 setIsAddingNew(true);
               }}
-              className="px-4 py-2 bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/20 text-xs font-bold tracking-wider"
+              className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 text-xs font-bold tracking-wider"
             >
-              FILE_NEW_REPORT
+              FILE NEW REPORT
             </button>
           </div>
         )}
+
       </div>
 
     </div>

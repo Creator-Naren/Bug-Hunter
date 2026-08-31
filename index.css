@@ -1,10 +1,65 @@
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-body {
-  font-family: 'Inter', sans-serif;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg-dark: #07080c;
+  --bg-card: #0d0e17;
+  --bg-surface: #121421;
+  --border-dim: #1d2136;
+  --border-neon: rgba(0, 255, 102, 0.4);
+  --accent-green: #00ff66;
+  --accent-cyan: #00e5ff;
+  --accent-purple: #8b5cf6;
+  --accent-red: #ff3366;
+  --accent-amber: #ffaa00;
 }
 
-/* Custom terminal scanlines */
+body {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  background-color: var(--bg-dark);
+  color: #f1f5f9;
+}
+
+code, pre, .font-mono {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Glassmorphism & Cyber Card Effects */
+.cyber-card {
+  background: linear-gradient(135deg, rgba(13, 14, 23, 0.85) 0%, rgba(18, 20, 33, 0.95) 100%);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+}
+
+.cyber-card-glow {
+  background: linear-gradient(135deg, rgba(13, 14, 23, 0.9) 0%, rgba(18, 20, 33, 0.95) 100%);
+  border: 1px solid rgba(0, 255, 102, 0.25);
+  box-shadow: 0 0 20px rgba(0, 255, 102, 0.08), inset 0 0 15px rgba(0, 255, 102, 0.03);
+}
+
+.cyber-card-cyan {
+  background: linear-gradient(135deg, rgba(13, 14, 23, 0.9) 0%, rgba(18, 20, 33, 0.95) 100%);
+  border: 1px solid rgba(0, 229, 255, 0.25);
+  box-shadow: 0 0 20px rgba(0, 229, 255, 0.08), inset 0 0 15px rgba(0, 229, 255, 0.03);
+}
+
+.cyber-gradient-text {
+  background: linear-gradient(135deg, #ffffff 0%, #00ff66 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.cyan-gradient-text {
+  background: linear-gradient(135deg, #ffffff 0%, #00e5ff 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom terminal scanlines overlay */
 .scanline-overlay {
   position: relative;
 }
@@ -13,8 +68,8 @@ body {
   display: block;
   position: absolute;
   top: 0; left: 0; bottom: 0; right: 0;
-  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.15) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
-  background-size: 100% 4px, 3px 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(0, 255, 102, 0.01), rgba(0, 229, 255, 0.01), rgba(255, 0, 102, 0.01));
+  background-size: 100% 4px, 4px 100%;
   z-index: 10;
   pointer-events: none;
 }
@@ -28,44 +83,58 @@ body {
 .terminal-cursor {
   display: inline-block;
   width: 8px;
-  height: 15px;
-  background-color: #00FF41;
+  height: 16px;
+  background-color: var(--accent-green);
   animation: terminal-blink 1s infinite;
   vertical-align: middle;
   margin-left: 4px;
 }
 
-/* Matrix style scrollbar */
+/* Matrix & Cyber scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #0D0D0D;
+  background: #07080c;
 }
 ::-webkit-scrollbar-thumb {
-  background: #00FF4144;
-  border-radius: 3px;
+  background: rgba(0, 255, 102, 0.2);
+  border-radius: 4px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #00FF4188;
+  background: rgba(0, 255, 102, 0.5);
 }
 
-/* Glow utility */
+/* Glow utilities */
 .glow-border-green {
-  box-shadow: 0 0 10px rgba(0, 255, 65, 0.15);
-  border: 1px solid rgba(0, 255, 65, 0.3);
+  box-shadow: 0 0 12px rgba(0, 255, 102, 0.2);
+  border: 1px solid rgba(0, 255, 102, 0.4);
 }
 
 .glow-border-cyan {
-  box-shadow: 0 0 10px rgba(0, 229, 255, 0.15);
-  border: 1px solid rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+  border: 1px solid rgba(0, 229, 255, 0.4);
 }
 
 .glow-text-green {
-  text-shadow: 0 0 5px rgba(0, 255, 65, 0.5);
+  text-shadow: 0 0 8px rgba(0, 255, 102, 0.6);
 }
 
 .glow-text-cyan {
-  text-shadow: 0 0 5px rgba(0, 229, 255, 0.5);
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+.glow-text-red {
+  text-shadow: 0 0 8px rgba(255, 51, 102, 0.6);
+}
+
+/* Pulse HUD animation */
+@keyframes radar-sweep {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.radar-sweep-animation {
+  animation: radar-sweep 4s linear infinite;
 }

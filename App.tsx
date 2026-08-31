@@ -28,6 +28,7 @@ const App: React.FC = () => {
   const [recentLogs, setRecentLogs] = useState<string[]>([
     'System initialization sequence complete.',
     'Secure Firestore communication channel established.',
+    'Gemini 2.5 SAST Security engine online.',
     'Ready for code scanning operations.'
   ]);
 
@@ -61,16 +62,30 @@ const App: React.FC = () => {
     fetchAllData();
   };
 
-  // Convert AI Finding to Bug Report Form
+  // Convert AI Finding to Bug Report Form with enhanced details
   const handleConvertToReport = (finding: Finding, codeSnippet: string) => {
+    const cweHeader = finding.cwe ? ` [${finding.cwe}]` : '';
+    const codeLines = codeSnippet.split('\n');
+    const startLine = Math.max(0, finding.lineNumber - 5);
+    const endLine = Math.min(codeLines.length, finding.lineNumber + 5);
+    const slicedPoc = codeLines.slice(startLine, endLine).join('\n');
+
+    const stepsToReproduce = finding.exploitScenario
+      ? `Exploit Scenario / Attack Path:\n${finding.exploitScenario}`
+      : `1. Review Python code around line ${finding.lineNumber}.\n2. Trigger vulnerable code execution path.`;
+
+    const impactText = finding.impact
+      ? `Technical & Business Impact:\n${finding.impact}\n\nRemediation Recommendation:\n${finding.recommendation}`
+      : `Exploitation of this finding may lead to security compromise.\n\nRecommendation:\n${finding.recommendation}`;
+
     const initialReport: Partial<BugReport> = {
-      title: `[AI Audit] ${finding.type} on Line ${finding.lineNumber}`,
+      title: `[AI Audit] ${finding.type}${cweHeader} at Line ${finding.lineNumber}`,
       vuln_type: finding.type,
       severity: finding.severity,
-      description: `During an automated static application security testing (SAST) session, BugHunter AI discovered a ${finding.severity}-severity security vulnerability:\n\n${finding.description}`,
-      steps_to_reproduce: `1. Review the Python source code surrounding line ${finding.lineNumber}.\n2. Observe the unsafe coding pattern.\n3. Verify the vulnerability trigger context.`,
-      poc: `# Code slice containing the vulnerability:\n${codeSnippet.split('\n').slice(Math.max(0, finding.lineNumber - 5), finding.lineNumber + 5).join('\n')}`,
-      impact: `Exploitation of this finding may lead to security compromise. Refer to the description for remediation: ${finding.recommendation}`,
+      description: `During an automated SAST audit, BugHunter AI identified a ${finding.severity}-severity vulnerability (${finding.cwe || 'CWE Unspecified'}):\n\n${finding.description}`,
+      steps_to_reproduce: stepsToReproduce,
+      poc: `# Vulnerable Code Snippet (Line ${finding.lineNumber}):\n${slicedPoc}\n\n${finding.remediationCode ? `# Suggested Remediation Code:\n${finding.remediationCode}` : ''}`,
+      impact: impactText,
       status: 'Draft'
     };
 
@@ -78,7 +93,7 @@ const App: React.FC = () => {
     setIsAddingNewReport(true);
     setSelectedReportId(null);
     setActiveTab('reports');
-    addSystemLog(`Converted AI Finding (${finding.type}) -> Draft Report.`);
+    addSystemLog(`Converted AI Finding (${finding.type}) -> Draft Bug Report.`);
   };
 
   // Save historical scans
@@ -116,7 +131,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#0D0D0D] text-zinc-100 overflow-hidden font-sans select-none">
+    <div className="flex h-screen bg-[#090A0F] text-zinc-100 overflow-hidden font-sans select-none antialiased">
       
       {/* SIDEBAR NAVIGATION */}
       <Sidebar 
@@ -134,7 +149,7 @@ const App: React.FC = () => {
       />
 
       {/* CORE WORKSPACE INTERFACE */}
-      <main className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-950">
+      <main className="flex-1 flex flex-col h-full overflow-hidden bg-[#0D0E15]">
         {activeTab === 'dashboard' && (
           <Dashboard 
             targets={targets} 
