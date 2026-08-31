@@ -41,8 +41,12 @@ export interface Finding {
   type: string;
   severity: 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
   lineNumber: number;
+  cwe?: string;
   description: string;
+  impact?: string;
+  exploitScenario?: string;
   recommendation: string;
+  remediationCode?: string;
 }
 
 export interface CodeAnalysis {
